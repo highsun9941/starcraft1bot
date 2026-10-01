@@ -36,7 +36,7 @@
   </ImportGroup>
   <PropertyGroup>
     <!-- Set BWAPI_DIR env var to your BWAPI 4.4.0 folder
-         (the one containing include\BWAPI.h and lib\BWAPI.lib) -->
+         (the one containing include\BWAPI.h and lib\BWAPILIB.lib) -->
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Configuration)\</IntDir>
@@ -55,7 +55,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalLibraryDirectories>$(BWAPI_DIR)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>BWAPI.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>BWAPILIB.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -75,7 +75,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <AdditionalLibraryDirectories>$(BWAPI_DIR)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>BWAPI.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>BWAPILIB.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
