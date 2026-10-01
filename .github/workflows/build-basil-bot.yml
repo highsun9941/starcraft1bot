@@ -1,0 +1,121 @@
+name: Build BASIL bot
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "valuebot/**"
+      - "basil-upload/**"
+      - ".github/workflows/build-basil-bot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout bot repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Clone BWAPI 4.4.0
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch v4.4.0 https://github.com/bwapi/bwapi.git third_party/bwapi
+
+      - name: Build BWAPILIB (Win32 Release)
+        shell: pwsh
+        run: |
+          $bwapiOut = Join-Path $env:GITHUB_WORKSPACE "third_party\bwapi\bwapi\lib\"
+          New-Item -ItemType Directory -Force -Path $bwapiOut | Out-Null
+
+          msbuild "third_party\bwapi\bwapi\BWAPILIB\BWAPILIB.vcxproj" `
+            /m `
+            /p:Configuration=Release `
+            /p:Platform=Win32 `
+            /p:PlatformToolset=v143 `
+            "/p:OutDir=$bwapiOut"
+
+          Get-ChildItem $bwapiOut
+
+      - name: Build ValueBot (Win32 Release)
+        shell: pwsh
+        env:
+          BWAPI_DIR: ${{ github.workspace }}\third_party\bwapi\bwapi
+        run: |
+          msbuild "valuebot\vs\ValueBot.sln" `
+            /m `
+            /p:Configuration=Release `
+            /p:Platform=Win32 `
+            /p:PlatformToolset=v143
+
+          $botDll = "valuebot\vs\Release\ValueBot.dll"
+          if (-not (Test-Path $botDll)) {
+            throw "ValueBot.dll was not produced"
+          }
+          Get-Item $botDll | Format-List FullName,Length,LastWriteTime
+
+      - name: Download official BWAPI 4.4.0 runtime
+        shell: pwsh
+        run: |
+          Invoke-WebRequest `
+            -Uri "https://github.com/bwapi/bwapi/releases/download/v4.4.0/BWAPI.7z" `
+            -OutFile "BWAPI.7z"
+
+          New-Item -ItemType Directory -Force -Path "bwapi-release" | Out-Null
+          7z x "BWAPI.7z" "-obwapi-release" -y
+
+          $candidates = Get-ChildItem "bwapi-release" -Recurse -Filter "BWAPI.dll"
+          $candidates | ForEach-Object { Write-Host "BWAPI.dll candidate: $($_.FullName)" }
+
+          $bwapiDll = $candidates |
+            Where-Object { $_.FullName -match "bwapi-data" } |
+            Select-Object -First 1
+
+          if (-not $bwapiDll) {
+            $bwapiDll = $candidates | Select-Object -First 1
+          }
+          if (-not $bwapiDll) {
+            throw "BWAPI.dll was not found in BWAPI.7z"
+          }
+
+          Copy-Item $bwapiDll.FullName "BWAPI.dll"
+          Get-FileHash "BWAPI.dll" -Algorithm MD5
+          Get-Item "BWAPI.dll" | Format-List FullName,Length
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force "dist" -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path "dist\basil" | Out-Null
+          New-Item -ItemType Directory -Force -Path "dist\submit" | Out-Null
+
+          Copy-Item "valuebot\vs\Release\ValueBot.dll" "dist\basil\ValueBot.dll"
+
+          Copy-Item "valuebot\vs\Release\ValueBot.dll" "dist\submit\ValueBot.dll"
+          Copy-Item "BWAPI.dll" "dist\submit\BWAPI.dll"
+
+          Compress-Archive -Path "dist\basil\*" -DestinationPath "dist\ValueBot-basil-binary.zip"
+          Compress-Archive -Path "dist\submit\*" -DestinationPath "dist\ValueBot-submit.zip"
+
+          Get-FileHash "valuebot\vs\Release\ValueBot.dll" -Algorithm SHA256
+          Get-FileHash "dist\ValueBot-basil-binary.zip" -Algorithm SHA256
+          Get-FileHash "dist\ValueBot-submit.zip" -Algorithm SHA256
+          Get-ChildItem "dist" -Recurse | Format-Table FullName,Length
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: valuebot-win32-bwapi440
+          path: |
+            valuebot/vs/Release/ValueBot.dll
+            dist/ValueBot-basil-binary.zip
+            dist/ValueBot-submit.zip
+          if-no-files-found: error
+          retention-days: 7
