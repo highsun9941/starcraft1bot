@@ -27,7 +27,18 @@ jobs:
       - name: Clone BWAPI 4.4.0
         shell: pwsh
         run: |
-          git clone --depth 1 --branch v4.4.0 https://github.com/bwapi/bwapi.git third_party/bwapi
+          git clone --branch v4.4.0 https://github.com/bwapi/bwapi.git third_party/bwapi
+
+      - name: Generate BWAPI revision header
+        shell: pwsh
+        run: |
+          Push-Location "third_party\bwapi\bwapi"
+          cscript.exe //nologo revisionUpdate.vbs
+          if (-not (Test-Path "include\svnrev.h")) {
+            throw "BWAPI revision header was not generated"
+          }
+          Get-Content "include\svnrev.h"
+          Pop-Location
 
       - name: Build BWAPILIB (Win32 Release)
         shell: pwsh
